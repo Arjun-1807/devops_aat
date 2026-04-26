@@ -16,7 +16,16 @@ async function readErrorMessage(response, fallbackMessage) {
       return data.message;
     }
   } catch (error) {
-    console.error("Failed to parse API error", error);
+    console.error("Failed to parse API error as JSON", error);
+  }
+
+  try {
+    const text = await response.text();
+    if (text.trim()) {
+      return text.trim();
+    }
+  } catch (error) {
+    console.error("Failed to parse API error as text", error);
   }
   return fallbackMessage;
 }
