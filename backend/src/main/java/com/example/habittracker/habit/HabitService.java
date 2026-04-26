@@ -3,24 +3,33 @@ package com.example.habittracker.habit;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import com.example.habittracker.user.UserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class HabitService {
 
     private final HabitRepository habitRepository;
+    private final UserService userService;
 
-    public HabitService(HabitRepository habitRepository) {
+    public HabitService(HabitRepository habitRepository, UserService userService) {
         this.habitRepository = habitRepository;
+        this.userService = userService;
     }
 
     @Transactional
     public Habit createHabit(String name, String username) {
-        String normalizedUsername = (username == null || username.isBlank()) ? "demo-user" : username.trim();
-        Habit habit = new Habit(name.trim(), normalizedUsername);
+        String normalizedName = name == null ? "" : name.trim();
+        if (normalizedName.isEmpty()) {
+            throw new ResponseStatusException(BAD_REQUEST, "Habit name is required.");
+        }
+
+        String normalizedUsername = userService.requireExistingUser(username).getUsername();
+        Habit habit = new Habit(normalizedName, normalizedUsername);
         return habitRepository.save(habit);
     }
 

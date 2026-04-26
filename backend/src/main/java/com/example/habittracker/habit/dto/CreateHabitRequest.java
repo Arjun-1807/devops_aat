@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public class CreateHabitRequest {
 
-    @NotBlank
+    @NotBlank(message = "Habit name is required.")
     private String name;
 
     private String username;

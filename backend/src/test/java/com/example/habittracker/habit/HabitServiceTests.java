@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.example.habittracker.user.AppUser;
+import com.example.habittracker.user.UserService;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -18,14 +20,19 @@ class HabitServiceTests {
     @Mock
     private HabitRepository habitRepository;
 
+    @Mock
+    private UserService userService;
+
     @InjectMocks
     private HabitService habitService;
 
     @Test
-    void createHabitUsesDefaultUsernameWhenBlank() {
+    void createHabitUsesRegisteredUsername() {
         when(habitRepository.save(any(Habit.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userService.requireExistingUser("demo-user"))
+            .thenReturn(new AppUser("Demo User", "demo-user", "hashed"));
 
-        Habit habit = habitService.createHabit("Read 10 pages", "   ");
+        Habit habit = habitService.createHabit("Read 10 pages", "demo-user");
 
         assertThat(habit.getName()).isEqualTo("Read 10 pages");
         assertThat(habit.getUsername()).isEqualTo("demo-user");
