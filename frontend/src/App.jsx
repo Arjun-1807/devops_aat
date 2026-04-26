@@ -49,6 +49,7 @@ function App() {
   const [loadingHabits, setLoadingHabits] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [habitLoading, setHabitLoading] = useState(false);
+  const [completingHabitId, setCompletingHabitId] = useState(null);
   const [authError, setAuthError] = useState("");
   const [habitError, setHabitError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -165,9 +166,10 @@ function App() {
         return;
       }
 
+      const createdHabit = await response.json();
       setHabitName("");
       setSuccessMessage("Habit added.");
-      await loadHabits(session.username);
+      setHabits((current) => [...current, createdHabit]);
     } catch (error) {
       console.error("Failed to create habit", error);
       setHabitError("The server could not create that habit right now.");
@@ -179,6 +181,7 @@ function App() {
   async function completeHabit(id) {
     setHabitError("");
     setSuccessMessage("");
+    setCompletingHabitId(id);
 
     try {
       const response = await fetch(`${API_BASE}/habits/${id}/complete`, {
@@ -191,11 +194,16 @@ function App() {
         return;
       }
 
+      const updatedHabit = await response.json();
       setSuccessMessage("Habit marked complete.");
-      await loadHabits(session.username);
+      setHabits((current) =>
+        current.map((habit) => (habit.id === id ? updatedHabit : habit)),
+      );
     } catch (error) {
       console.error("Failed to update habit", error);
       setHabitError("The server could not update that habit right now.");
+    } finally {
+      setCompletingHabitId(null);
     }
   }
 
@@ -372,9 +380,10 @@ function App() {
                   <button
                     type="button"
                     className="secondary-button"
+                    disabled={completingHabitId === habit.id}
                     onClick={() => completeHabit(habit.id)}
                   >
-                    Complete
+                    {completingHabitId === habit.id ? "Updating..." : "Complete"}
                   </button>
                 </article>
               ))}
