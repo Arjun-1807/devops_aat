@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help backend-test backend-run docker-up docker-down docker-build k8s-apply k8s-delete tf-init tf-apply tf-destroy
+.PHONY: help backend-test backend-run docker-up docker-down docker-build k8s-apply k8s-delete
 
 help:
 	@echo "Available targets:"
@@ -11,9 +11,6 @@ help:
 	@echo "  docker-down    - Stop Docker Compose stack"
 	@echo "  k8s-apply      - Apply simple Kubernetes manifests"
 	@echo "  k8s-delete     - Delete Kubernetes manifests"
-	@echo "  tf-init        - Initialize Terraform"
-	@echo "  tf-apply       - Apply Terraform"
-	@echo "  tf-destroy     - Destroy Terraform-managed resources"
 
 backend-test:
 	cd backend && mvn clean test
@@ -35,12 +32,3 @@ k8s-apply:
 
 k8s-delete:
 	kubectl delete -f k8s/ --ignore-not-found
-
-tf-init:
-	cd terraform && terraform init
-
-tf-apply:
-	cd terraform && terraform apply -auto-approve
-
-tf-destroy:
-	cd terraform && terraform destroy -auto-approve

@@ -61,7 +61,7 @@ spec:
       containers:
         - name: habit-backend
           image: habit-tracker-backend:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 8081
           env:

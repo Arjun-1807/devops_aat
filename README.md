@@ -9,7 +9,6 @@ Tools used:
 - Docker and Docker Compose for container run
 - Jenkins for CI
 - Kubernetes with Minikube for deployment
-- Terraform for applying Kubernetes resources
 
 ## What The App Does
 
@@ -30,9 +29,8 @@ Backend runs on:
 - `backend/` Java Spring Boot app
 - `Dockerfile` Docker image for backend
 - `docker-compose.yml` backend + PostgreSQL
-- `Jenkinsfile` simple Jenkins pipeline
+- `Jenkinsfile` Jenkins pipeline for build and deploy
 - `k8s/app.yaml` simple Kubernetes file
-- `terraform/` Terraform for the same Kubernetes resources
 - `Makefile` shortcut commands
 
 ## Prerequisites
@@ -43,7 +41,6 @@ Backend runs on:
 - Jenkins
 - Minikube
 - kubectl
-- Terraform
 
 ## Run Locally With Maven
 
@@ -83,18 +80,31 @@ make docker-down
 
 ## Jenkins
 
-Jenkins pipeline steps are:
+Jenkins should handle the full flow:
 
-1. Checkout code
+1. Checkout code from GitHub
 2. Run `mvn clean test`
 3. Run `mvn clean package -DskipTests`
 4. Check Docker Compose file
-5. Build Docker image
+5. Build Docker image inside Minikube
+6. Deploy to Kubernetes with `kubectl apply`
 
 Jenkins tools needed:
 
 - `jdk17`
 - `maven3`
+
+Jenkins machine also needs:
+
+- Docker
+- Minikube
+- kubectl
+
+Important:
+
+- The Jenkins pipeline now deploys the app to Kubernetes
+- You do not need to run `make k8s-apply` manually if Jenkins deployment is working
+- If Jenkins is running inside a Docker container, that container must have access to `docker`, `kubectl`, and `minikube`
 
 ## Kubernetes With Minikube
 
@@ -104,7 +114,7 @@ Start Minikube:
 minikube start
 ```
 
-Build Docker image inside Minikube:
+For manual testing outside Jenkins, build Docker image inside Minikube:
 
 ```bash
 eval $(minikube docker-env)
@@ -116,6 +126,8 @@ Apply Kubernetes file:
 ```bash
 make k8s-apply
 ```
+
+If Jenkins is being used properly, Jenkins does these steps automatically.
 
 Access app:
 
@@ -129,36 +141,19 @@ Delete:
 make k8s-delete
 ```
 
-## Terraform
-
-Terraform applies the same backend and PostgreSQL resources to Kubernetes.
-
-```bash
-make tf-init
-make tf-apply
-```
-
-Destroy:
-
-```bash
-make tf-destroy
-```
-
 ## Easy Explanation Of Tool Usage
 
 - GitHub stores the project code
 - Maven builds and tests the Java app
 - Docker packages the app into an image
 - Docker Compose runs app and database together
-- Jenkins automates test, package, and docker build
+- Jenkins automates test, package, docker build, and Kubernetes deploy
 - Kubernetes runs the app in Minikube
-- Terraform creates the Kubernetes resources using code
 
 ## Viva Flow
 
 1. Show the Java app and API
 2. Show `mvn test`
 3. Show `docker compose up`
-4. Show Jenkins pipeline
+4. Show Jenkins pipeline doing build and deployment
 5. Show `kubectl get all -n habit-tracker`
-6. Show `terraform apply`
