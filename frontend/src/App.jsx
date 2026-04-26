@@ -10,6 +10,8 @@ const emptyAuthForm = {
 };
 
 async function readErrorMessage(response, fallbackMessage) {
+  const clonedResponse = response.clone();
+
   try {
     const data = await response.json();
     if (data && typeof data.message === "string" && data.message.trim()) {
@@ -20,7 +22,7 @@ async function readErrorMessage(response, fallbackMessage) {
   }
 
   try {
-    const text = await response.text();
+    const text = await clonedResponse.text();
     if (text.trim()) {
       return text.trim();
     }
