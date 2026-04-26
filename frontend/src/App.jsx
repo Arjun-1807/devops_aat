@@ -29,6 +29,7 @@ async function readErrorMessage(response, fallbackMessage) {
   } catch (error) {
     console.error("Failed to parse API error as text", error);
   }
+
   return fallbackMessage;
 }
 
@@ -36,6 +37,10 @@ function App() {
   const [session, setSession] = useState(() => {
     const stored = window.localStorage.getItem(SESSION_KEY);
     return stored ? JSON.parse(stored) : null;
+  });
+  const [view, setView] = useState(() => {
+    const stored = window.localStorage.getItem(SESSION_KEY);
+    return stored ? "dashboard" : "auth";
   });
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState(emptyAuthForm);
@@ -51,8 +56,10 @@ function App() {
   useEffect(() => {
     if (session) {
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      setView("dashboard");
     } else {
       window.localStorage.removeItem(SESSION_KEY);
+      setView("auth");
     }
   }, [session]);
 
@@ -125,7 +132,7 @@ function App() {
       setAuthForm(emptyAuthForm);
       setSuccessMessage(
         authMode === "register"
-          ? `Welcome, ${user.displayName}. Your account is ready.`
+          ? `Welcome, ${user.displayName}.`
           : `Welcome back, ${user.displayName}.`,
       );
     } catch (error) {
@@ -159,7 +166,7 @@ function App() {
       }
 
       setHabitName("");
-      setSuccessMessage("Habit added successfully.");
+      setSuccessMessage("Habit added.");
       await loadHabits(session.username);
     } catch (error) {
       console.error("Failed to create habit", error);
@@ -184,7 +191,7 @@ function App() {
         return;
       }
 
-      setSuccessMessage("Streak updated.");
+      setSuccessMessage("Habit marked complete.");
       await loadHabits(session.username);
     } catch (error) {
       console.error("Failed to update habit", error);
@@ -202,207 +209,164 @@ function App() {
     setAuthMode("login");
   }
 
-  const completedToday = habits.filter(
-    (habit) => habit.lastCompletedDate === new Date().toISOString().slice(0, 10),
-  ).length;
-  const bestStreak = habits.reduce((best, habit) => Math.max(best, habit.streak), 0);
-
   return (
-    <main className="page-shell">
-      <section className="hero-panel">
-        <p className="eyebrow">Habit Tracker</p>
-        <h1>Build routines that are easy to start and satisfying to keep.</h1>
-        <p className="hero-copy">
-          Create an account, log in, and track daily progress with a cleaner
-          dashboard that actually feels usable.
-        </p>
+    <div className="app-shell">
+      <header className="navbar">
+        <button type="button" className="brand" onClick={() => setView(session ? "dashboard" : "auth")}>
+          HabitFlow
+        </button>
 
-        <div className="hero-grid">
-          <article className="hero-card">
-            <span>Simple accounts</span>
-            <strong>Sign up and log in with your own username.</strong>
-          </article>
-          <article className="hero-card">
-            <span>Daily momentum</span>
-            <strong>Track streaks and today&apos;s completions at a glance.</strong>
-          </article>
-          <article className="hero-card">
-            <span>One place</span>
-            <strong>Frontend and backend stay connected through the same app URL.</strong>
-          </article>
-        </div>
-      </section>
-
-      {!session ? (
-        <section className="auth-panel">
-          <div className="panel-header">
-            <div>
-              <p className="section-kicker">Account</p>
-              <h2>{authMode === "register" ? "Create your profile" : "Welcome back"}</h2>
-            </div>
-
-            <div className="mode-switch" role="tablist" aria-label="Authentication mode">
+        <nav className="nav-actions">
+          {session ? (
+            <>
+              <span className="nav-user">@{session.username}</span>
+              <button type="button" className="nav-button" onClick={logout}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
               <button
                 type="button"
-                className={authMode === "login" ? "active" : ""}
+                className={view === "auth" && authMode === "login" ? "nav-button active" : "nav-button"}
                 onClick={() => {
+                  setView("auth");
                   setAuthMode("login");
                   setAuthError("");
-                  setSuccessMessage("");
                 }}
               >
                 Login
               </button>
               <button
                 type="button"
-                className={authMode === "register" ? "active" : ""}
+                className={view === "auth" && authMode === "register" ? "nav-button active" : "nav-button"}
                 onClick={() => {
+                  setView("auth");
                   setAuthMode("register");
                   setAuthError("");
-                  setSuccessMessage("");
                 }}
               >
                 Register
               </button>
-            </div>
-          </div>
+            </>
+          )}
+        </nav>
+      </header>
 
-          <form className="auth-form" onSubmit={handleAuthSubmit}>
-            {authMode === "register" ? (
-              <label>
-                Display name
-                <input
-                  value={authForm.displayName}
-                  onChange={(event) => updateAuthField("displayName", event.target.value)}
-                  placeholder="Arjun Gowda"
-                />
-              </label>
-            ) : null}
+      {view === "auth" || !session ? (
+        <main className="page page-auth">
+          <section className="intro-card">
+            <p className="eyebrow">Minimal Habit Tracker</p>
+            <h1>Track your daily habits with a clean, focused workflow.</h1>
+            <p className="intro-copy">
+              Create an account, log in, and keep your routine visible without extra clutter.
+            </p>
+          </section>
 
-            <label>
-              Username
-              <input
-                value={authForm.username}
-                onChange={(event) => updateAuthField("username", event.target.value)}
-                placeholder="arjun"
-              />
-            </label>
-
-            <label>
-              Password
-              <input
-                type="password"
-                value={authForm.password}
-                onChange={(event) => updateAuthField("password", event.target.value)}
-                placeholder="Minimum 4 characters"
-              />
-            </label>
-
-            {authError ? <p className="message error">{authError}</p> : null}
-            {successMessage ? <p className="message success">{successMessage}</p> : null}
-
-            <button className="primary-button" type="submit" disabled={authLoading}>
-              {authLoading
-                ? "Please wait..."
-                : authMode === "register"
-                  ? "Create account"
-                  : "Login"}
-            </button>
-          </form>
-        </section>
-      ) : (
-        <section className="dashboard-panel">
-          <header className="dashboard-header">
-            <div>
-              <p className="section-kicker">Dashboard</p>
-              <h2>{session.displayName}&apos;s habits</h2>
-              <p className="muted">
-                Signed in as <strong>@{session.username}</strong>
+          <section className="auth-card">
+            <div className="auth-header">
+              <h2>{authMode === "register" ? "Create account" : "Login"}</h2>
+              <p>
+                {authMode === "register"
+                  ? "Start with a simple profile."
+                  : "Continue with your account."}
               </p>
             </div>
-            <button type="button" className="ghost-button" onClick={logout}>
-              Log out
-            </button>
-          </header>
 
-          <div className="stats-grid">
-            <article className="stat-card">
-              <span>Active habits</span>
-              <strong>{habits.length}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Completed today</span>
-              <strong>{completedToday}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Best streak</span>
-              <strong>{bestStreak}</strong>
-            </article>
-          </div>
+            <form className="auth-form" onSubmit={handleAuthSubmit}>
+              {authMode === "register" ? (
+                <label>
+                  Display name
+                  <input
+                    value={authForm.displayName}
+                    onChange={(event) => updateAuthField("displayName", event.target.value)}
+                    placeholder="Arjun Gowda"
+                  />
+                </label>
+              ) : null}
 
-          <form className="habit-composer" onSubmit={addHabit}>
+              <label>
+                Username
+                <input
+                  value={authForm.username}
+                  onChange={(event) => updateAuthField("username", event.target.value)}
+                  placeholder="arjun"
+                />
+              </label>
+
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={authForm.password}
+                  onChange={(event) => updateAuthField("password", event.target.value)}
+                  placeholder="Minimum 4 characters"
+                />
+              </label>
+
+              {authError ? <p className="message error">{authError}</p> : null}
+              {successMessage ? <p className="message success">{successMessage}</p> : null}
+
+              <button className="primary-button" type="submit" disabled={authLoading}>
+                {authLoading
+                  ? "Please wait..."
+                  : authMode === "register"
+                    ? "Create account"
+                    : "Login"}
+              </button>
+            </form>
+          </section>
+        </main>
+      ) : (
+        <main className="page page-dashboard">
+          <section className="dashboard-hero">
             <div>
-              <p className="section-kicker">New habit</p>
-              <h3>Add something worth repeating</h3>
+              <p className="eyebrow">Dashboard</p>
+              <h1>Welcome, {session.displayName}</h1>
+              <p className="intro-copy">Add habits, complete them, and keep the streak going.</p>
             </div>
-            <div className="composer-row">
+          </section>
+
+          <section className="composer-card">
+            <form className="composer-form" onSubmit={addHabit}>
               <input
                 value={habitName}
                 onChange={(event) => setHabitName(event.target.value)}
-                placeholder="Read 10 pages"
+                placeholder="Add a new habit"
               />
               <button
                 className="primary-button"
                 type="submit"
                 disabled={habitLoading || !habitName.trim()}
               >
-                {habitLoading ? "Adding..." : "Add habit"}
+                {habitLoading ? "Adding..." : "Add"}
               </button>
-            </div>
-          </form>
+            </form>
 
-          {habitError ? <p className="message error">{habitError}</p> : null}
-          {successMessage ? <p className="message success">{successMessage}</p> : null}
+            {habitError ? <p className="message error">{habitError}</p> : null}
+            {successMessage ? <p className="message success">{successMessage}</p> : null}
+          </section>
 
-          <section className="habits-section">
-            <div className="panel-header">
-              <div>
-                <p className="section-kicker">Your list</p>
-                <h3>Keep the streak alive</h3>
-              </div>
+          <section className="habits-card">
+            <div className="section-row">
+              <h2>Your habits</h2>
+              <span className="habit-count">{habits.length}</span>
             </div>
 
             {loadingHabits ? <p className="empty-state">Loading habits...</p> : null}
 
             {!loadingHabits && habits.length === 0 ? (
-              <p className="empty-state">
-                No habits yet. Add your first one to start building momentum.
-              </p>
+              <p className="empty-state">No habits yet. Add one to get started.</p>
             ) : null}
 
-            <div className="habit-grid">
+            <div className="habit-list">
               {habits.map((habit) => (
-                <article className="habit-card" key={habit.id}>
-                  <div className="habit-topline">
-                    <span className="habit-badge">#{habit.id}</span>
-                    <span className="habit-date">
-                      {habit.lastCompletedDate
-                        ? `Last done ${habit.lastCompletedDate}`
-                        : "Not completed yet"}
-                    </span>
-                  </div>
-
-                  <h4>{habit.name}</h4>
-
-                  <div className="habit-metrics">
-                    <div>
-                      <span>Streak</span>
-                      <strong>{habit.streak} day{habit.streak === 1 ? "" : "s"}</strong>
-                    </div>
-                    <div>
-                      <span>Owner</span>
-                      <strong>@{habit.username}</strong>
-                    </div>
+                <article className="habit-item" key={habit.id}>
+                  <div className="habit-main">
+                    <h3>{habit.name}</h3>
+                    <p>
+                      Streak: {habit.streak} day{habit.streak === 1 ? "" : "s"}
+                    </p>
                   </div>
 
                   <button
@@ -410,15 +374,15 @@ function App() {
                     className="secondary-button"
                     onClick={() => completeHabit(habit.id)}
                   >
-                    Mark complete
+                    Complete
                   </button>
                 </article>
               ))}
             </div>
           </section>
-        </section>
+        </main>
       )}
-    </main>
+    </div>
   );
 }
 
