@@ -85,3 +85,42 @@ spec:
       targetPort: 8081
       nodePort: 30081
   type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: habit-frontend
+  namespace: habit-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: habit-frontend
+  template:
+    metadata:
+      labels:
+        app: habit-frontend
+    spec:
+      containers:
+        - name: habit-frontend
+          image: habit-tracker-frontend:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 80
+          env:
+            - name: BACKEND_UPSTREAM
+              value: http://habit-backend:8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: habit-frontend
+  namespace: habit-tracker
+spec:
+  selector:
+    app: habit-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+  type: NodePort

@@ -31,5 +31,17 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: habit-frontend
+    environment:
+      BACKEND_UPSTREAM: http://backend:8081
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres-data:

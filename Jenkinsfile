@@ -8,6 +8,7 @@ pipeline {
 
   environment {
     K8S_NAMESPACE = 'habit-tracker'
+    FRONTEND_SERVICE = 'habit-frontend'
   }
 
   stages {
@@ -39,11 +40,12 @@ pipeline {
       }
     }
 
-    stage('Build Docker Image In Minikube') {
+    stage('Build Docker Images In Minikube') {
       steps {
         sh '''
           eval $(minikube -p minikube docker-env)
           docker build -t habit-tracker-backend:latest .
+          docker build -t habit-tracker-frontend:latest frontend
         '''
       }
     }
@@ -53,8 +55,30 @@ pipeline {
         sh '''
           kubectl apply -f k8s/app.yaml
           kubectl rollout restart deployment/habit-backend -n $K8S_NAMESPACE || true
+          kubectl rollout restart deployment/habit-frontend -n $K8S_NAMESPACE || true
           kubectl rollout status deployment/habit-db -n $K8S_NAMESPACE --timeout=180s
           kubectl rollout status deployment/habit-backend -n $K8S_NAMESPACE --timeout=180s
+          kubectl rollout status deployment/habit-frontend -n $K8S_NAMESPACE --timeout=180s
+        '''
+      }
+    }
+
+    stage('Verify Frontend') {
+      steps {
+        sh '''
+          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
+          echo "Frontend URL: $FRONTEND_URL"
+          curl -fsS "$FRONTEND_URL" >/dev/null
+        '''
+      }
+    }
+
+    stage('Open Frontend In Browser') {
+      steps {
+        sh '''
+          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
+          echo "Opening frontend: $FRONTEND_URL"
+          xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
         '''
       }
     }
