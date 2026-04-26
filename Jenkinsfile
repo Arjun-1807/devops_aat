@@ -68,7 +68,14 @@ pipeline {
         sh '''
           FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
           echo "Frontend URL: $FRONTEND_URL"
-          curl -fsS "$FRONTEND_URL" >/dev/null
+          kubectl run frontend-smoke-check \
+            -n $K8S_NAMESPACE \
+            --image=curlimages/curl:8.7.1 \
+            --restart=Never \
+            --rm \
+            --attach \
+            --command -- \
+            curl -fsS http://$FRONTEND_SERVICE >/dev/null
         '''
       }
     }
@@ -77,7 +84,7 @@ pipeline {
       steps {
         sh '''
           FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
-          echo "Opening frontend: $FRONTEND_URL"
+          echo "Frontend is available at: $FRONTEND_URL"
           xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
         '''
       }
