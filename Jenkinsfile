@@ -9,6 +9,7 @@ pipeline {
   environment {
     K8S_NAMESPACE = 'habit-tracker'
     FRONTEND_SERVICE = 'habit-frontend'
+    BACKEND_SERVICE = 'habit-backend'
   }
 
   stages {
@@ -84,7 +85,13 @@ pipeline {
       steps {
         sh '''
           FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
-          echo "Frontend is available at: $FRONTEND_URL"
+          BACKEND_URL=$(minikube service $BACKEND_SERVICE -n $K8S_NAMESPACE --url)
+          echo ""
+          echo "Application deployed successfully."
+          echo "Frontend URL: $FRONTEND_URL"
+          echo "Backend API URL: $BACKEND_URL/api/habits"
+          echo "$FRONTEND_URL"
+          echo "$BACKEND_URL/api/habits"
           xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
         '''
       }
