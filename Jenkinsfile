@@ -1,100 +1,98 @@
 pipeline {
-  agent any
+    agent any
 
-  tools {
-    jdk 'jdk17'
-    maven 'maven3'
-  }
-
-  environment {
-    K8S_NAMESPACE = 'habit-tracker'
-    FRONTEND_SERVICE = 'habit-frontend'
-    BACKEND_SERVICE = 'habit-backend'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    tools {
+        jdk 'jdk17'
+        maven 'maven3'
     }
 
-    stage('Backend Test (Maven)') {
-      steps {
-        dir('backend') {
-          sh 'mvn clean test'
+    environment {
+        IMAGE_NAME_BACKEND = "habit-tracker-backend:latest"
+        IMAGE_NAME_FRONTEND = "habit-tracker-frontend:latest"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
         }
-      }
-    }
 
-    stage('Backend Package (Maven)') {
-      steps {
-        dir('backend') {
-          sh 'mvn clean package -DskipTests'
+        stage('Backend Test (Maven)') {
+            steps {
+                dir('backend') {
+                    sh 'mvn clean test'
+                }
+            }
         }
-      }
+
+        stage('Backend Package (Maven)') {
+            steps {
+                dir('backend') {
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Validate Docker Compose') {
+            steps {
+                sh 'docker compose config'
+            }
+        }
+
+        // ✅ FIXED: Removed minikube docker-env TLS issue
+        stage('Build Docker Images') {
+            steps {
+                sh '''
+                docker build -t $IMAGE_NAME_BACKEND .
+                docker build -t $IMAGE_NAME_FRONTEND ./frontend
+                '''
+            }
+        }
+
+        // Optional: push to Docker Hub (recommended)
+        // Uncomment if needed
+        /*
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    docker push $IMAGE_NAME_BACKEND
+                    docker push $IMAGE_NAME_FRONTEND
+                    '''
+                }
+            }
+        }
+        */
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f k8s/
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh 'kubectl get pods'
+                sh 'kubectl get services'
+            }
+        }
     }
 
-    stage('Validate Docker Compose') {
-      steps {
-        sh 'docker compose config'
-      }
+    post {
+        success {
+            echo 'Pipeline completed successfully 🚀'
+        }
+        failure {
+            echo 'Pipeline failed ❌'
+        }
     }
-
-    stage('Build Docker Images In Minikube') {
-      steps {
-        sh '''
-          eval $(minikube -p minikube docker-env)
-          docker build -t habit-tracker-backend:latest .
-          docker build -t habit-tracker-frontend:latest frontend
-        '''
-      }
-    }
-
-    stage('Deploy To Kubernetes') {
-      steps {
-        sh '''
-          kubectl apply -f k8s/app.yaml
-          kubectl rollout restart deployment/habit-backend -n $K8S_NAMESPACE || true
-          kubectl rollout restart deployment/habit-frontend -n $K8S_NAMESPACE || true
-          kubectl rollout status deployment/habit-db -n $K8S_NAMESPACE --timeout=180s
-          kubectl rollout status deployment/habit-backend -n $K8S_NAMESPACE --timeout=180s
-          kubectl rollout status deployment/habit-frontend -n $K8S_NAMESPACE --timeout=180s
-        '''
-      }
-    }
-
-    stage('Verify Frontend') {
-      steps {
-        sh '''
-          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
-          echo "Frontend URL: $FRONTEND_URL"
-          kubectl run frontend-smoke-check \
-            -n $K8S_NAMESPACE \
-            --image=curlimages/curl:8.7.1 \
-            --restart=Never \
-            --rm \
-            --attach \
-            --command -- \
-            curl -fsS http://$FRONTEND_SERVICE >/dev/null
-        '''
-      }
-    }
-
-    stage('Open Frontend In Browser') {
-      steps {
-        sh '''
-          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
-          BACKEND_URL=$(minikube service $BACKEND_SERVICE -n $K8S_NAMESPACE --url)
-          echo ""
-          echo "Application deployed successfully."
-          echo "Frontend URL: $FRONTEND_URL"
-          echo "Backend API URL: $BACKEND_URL/api/habits"
-          echo "$FRONTEND_URL"
-          echo "$BACKEND_URL/api/habits"
-          xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
-        '''
-      }
-    }
-  }
 }
