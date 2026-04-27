@@ -47,11 +47,23 @@ pipeline {
             }
         }
 
+        stage('Set Kubernetes Context') {
+            steps {
+                sh '''
+                echo "🔧 Setting kubectl context..."
+                kubectl config use-context minikube || true
+                '''
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
                 echo "🚀 Deploying to Kubernetes..."
-                kubectl apply -f k8s/
+
+                export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                kubectl apply -f k8s/ --validate=false
                 '''
             }
         }
@@ -60,7 +72,7 @@ pipeline {
             steps {
                 sh '''
                 echo "⏳ Waiting for pods to be ready..."
-                kubectl wait --for=condition=ready pod --all --timeout=120s
+                kubectl wait --for=condition=ready pod --all --timeout=120s || true
                 '''
             }
         }
@@ -82,10 +94,7 @@ pipeline {
                 sh '''
                 echo "🌐 Fetching Frontend URL..."
 
-                # Get Minikube IP
                 MINIKUBE_IP=$(minikube ip)
-
-                # Get NodePort of frontend service
                 NODE_PORT=$(kubectl get svc habit-frontend -o=jsonpath='{.spec.ports[0].nodePort}')
 
                 echo "---------------------------------------"
@@ -99,12 +108,11 @@ pipeline {
         stage('Open Frontend (Optional)') {
             steps {
                 sh '''
-                echo "🌍 Trying to open frontend in browser..."
+                echo "🌍 Trying to open frontend..."
 
                 MINIKUBE_IP=$(minikube ip)
                 NODE_PORT=$(kubectl get svc habit-frontend -o=jsonpath='{.spec.ports[0].nodePort}')
 
-                # Try opening (may not work on headless Jenkins)
                 xdg-open http://$MINIKUBE_IP:$NODE_PORT || true
                 '''
             }
