@@ -44,9 +44,9 @@ pipeline {
     stage('Build Docker Images In Minikube') {
       steps {
         sh '''
-          eval $(minikube -p minikube docker-env)
-          docker build -t habit-tracker-backend:latest .
-          docker build -t habit-tracker-frontend:latest frontend
+          minikube -p minikube status
+          minikube -p minikube image build -t habit-tracker-backend:latest .
+          minikube -p minikube image build -t habit-tracker-frontend:latest frontend
         '''
       }
     }
