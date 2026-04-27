@@ -1,130 +1,100 @@
 pipeline {
-    agent any
+  agent any
 
-    tools {
-        jdk 'jdk17'
-        maven 'maven3'
+  tools {
+    jdk 'jdk17'
+    maven 'maven3'
+  }
+
+  environment {
+    K8S_NAMESPACE = 'habit-tracker'
+    FRONTEND_SERVICE = 'habit-frontend'
+    BACKEND_SERVICE = 'habit-backend'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        BACKEND_IMAGE = "habit-backend:latest"
-        FRONTEND_IMAGE = "habit-frontend:latest"
+    stage('Backend Test (Maven)') {
+      steps {
+        dir('backend') {
+          sh 'mvn clean test'
+        }
+      }
     }
 
-    stages {
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
+    stage('Backend Package (Maven)') {
+      steps {
+        dir('backend') {
+          sh 'mvn clean package -DskipTests'
         }
-
-        stage('Backend Build & Package') {
-            steps {
-                dir('backend') {
-                    sh 'mvn clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('Build Docker Images') {
-            steps {
-                sh '''
-                echo "🔨 Building Docker Images..."
-                docker build -t $BACKEND_IMAGE .
-                docker build -t $FRONTEND_IMAGE ./frontend
-                '''
-            }
-        }
-
-        stage('Load Images into Minikube') {
-            steps {
-                sh '''
-                echo "📦 Loading images into Minikube..."
-                minikube image load $BACKEND_IMAGE
-                minikube image load $FRONTEND_IMAGE
-                '''
-            }
-        }
-
-        stage('Set Kubernetes Context') {
-            steps {
-                sh '''
-                echo "🔧 Setting kubectl context..."
-                kubectl config use-context minikube || true
-                '''
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh '''
-                echo "🚀 Deploying to Kubernetes..."
-
-                export KUBECONFIG=/var/lib/jenkins/.kube/config
-
-                kubectl apply -f k8s/ --validate=false
-                '''
-            }
-        }
-
-        stage('Wait for Pods') {
-            steps {
-                sh '''
-                echo "⏳ Waiting for pods to be ready..."
-                kubectl wait --for=condition=ready pod --all --timeout=120s || true
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                echo "📊 Pods:"
-                kubectl get pods
-
-                echo "📊 Services:"
-                kubectl get svc
-                '''
-            }
-        }
-
-        stage('Get Frontend URL') {
-            steps {
-                sh '''
-                echo "🌐 Fetching Frontend URL..."
-
-                MINIKUBE_IP=$(minikube ip)
-                NODE_PORT=$(kubectl get svc habit-frontend -o=jsonpath='{.spec.ports[0].nodePort}')
-
-                echo "---------------------------------------"
-                echo "✅ FRONTEND URL:"
-                echo "http://$MINIKUBE_IP:$NODE_PORT"
-                echo "---------------------------------------"
-                '''
-            }
-        }
-
-        stage('Open Frontend (Optional)') {
-            steps {
-                sh '''
-                echo "🌍 Trying to open frontend..."
-
-                MINIKUBE_IP=$(minikube ip)
-                NODE_PORT=$(kubectl get svc habit-frontend -o=jsonpath='{.spec.ports[0].nodePort}')
-
-                xdg-open http://$MINIKUBE_IP:$NODE_PORT || true
-                '''
-            }
-        }
+      }
     }
 
-    post {
-        success {
-            echo '🎉 Pipeline completed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed!'
-        }
+    stage('Validate Docker Compose') {
+      steps {
+        sh 'docker compose config'
+      }
     }
+
+    stage('Build Docker Images In Minikube') {
+      steps {
+        sh '''
+          eval $(minikube -p minikube docker-env)
+          docker build -t habit-tracker-backend:latest .
+          docker build -t habit-tracker-frontend:latest frontend
+        '''
+      }
+    }
+
+    stage('Deploy To Kubernetes') {
+      steps {
+        sh '''
+          kubectl apply -f k8s/app.yaml
+          kubectl rollout restart deployment/habit-backend -n $K8S_NAMESPACE || true
+          kubectl rollout restart deployment/habit-frontend -n $K8S_NAMESPACE || true
+          kubectl rollout status deployment/habit-db -n $K8S_NAMESPACE --timeout=180s
+          kubectl rollout status deployment/habit-backend -n $K8S_NAMESPACE --timeout=180s
+          kubectl rollout status deployment/habit-frontend -n $K8S_NAMESPACE --timeout=180s
+        '''
+      }
+    }
+
+    stage('Verify Frontend') {
+      steps {
+        sh '''
+          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
+          echo "Frontend URL: $FRONTEND_URL"
+          kubectl run frontend-smoke-check \
+            -n $K8S_NAMESPACE \
+            --image=curlimages/curl:8.7.1 \
+            --restart=Never \
+            --rm \
+            --attach \
+            --command -- \
+            curl -fsS http://$FRONTEND_SERVICE >/dev/null
+        '''
+      }
+    }
+
+    stage('Open Frontend In Browser') {
+      steps {
+        sh '''
+          FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
+          BACKEND_URL=$(minikube service $BACKEND_SERVICE -n $K8S_NAMESPACE --url)
+          echo ""
+          echo "Application deployed successfully."
+          echo "Frontend URL: $FRONTEND_URL"
+          echo "Backend API URL: $BACKEND_URL/api/habits"
+          echo "$FRONTEND_URL"
+          echo "$BACKEND_URL/api/habits"
+          xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
+        '''
+      }
+    }
+  }
 }
