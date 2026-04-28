@@ -13,6 +13,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         checkout scm
@@ -35,18 +36,21 @@ pipeline {
       }
     }
 
-    stage('Validate Docker Compose') {
+    stage('Build Docker Images (Local Docker)') {
       steps {
-        sh 'docker compose config'
+        sh '''
+          docker build -t habit-tracker-backend:latest .
+          docker build -t habit-tracker-frontend:latest ./frontend
+        '''
       }
     }
 
-    stage('Build Docker Images In Minikube') {
+    stage('Load Images Into Minikube') {
       steps {
         sh '''
-          minikube -p minikube status
-          minikube -p minikube image build -t habit-tracker-backend:latest .
-          minikube -p minikube image build -t habit-tracker-frontend:latest frontend
+          minikube status
+          minikube image load habit-tracker-backend:latest
+          minikube image load habit-tracker-frontend:latest
         '''
       }
     }
@@ -55,8 +59,10 @@ pipeline {
       steps {
         sh '''
           kubectl apply -f k8s/app.yaml
+
           kubectl rollout restart deployment/habit-backend -n $K8S_NAMESPACE || true
           kubectl rollout restart deployment/habit-frontend -n $K8S_NAMESPACE || true
+
           kubectl rollout status deployment/habit-db -n $K8S_NAMESPACE --timeout=180s
           kubectl rollout status deployment/habit-backend -n $K8S_NAMESPACE --timeout=180s
           kubectl rollout status deployment/habit-frontend -n $K8S_NAMESPACE --timeout=180s
@@ -69,6 +75,7 @@ pipeline {
         sh '''
           FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
           echo "Frontend URL: $FRONTEND_URL"
+
           kubectl run frontend-smoke-check \
             -n $K8S_NAMESPACE \
             --image=curlimages/curl:8.7.1 \
@@ -81,18 +88,16 @@ pipeline {
       }
     }
 
-    stage('Open Frontend In Browser') {
+    stage('Print URLs') {
       steps {
         sh '''
           FRONTEND_URL=$(minikube service $FRONTEND_SERVICE -n $K8S_NAMESPACE --url)
           BACKEND_URL=$(minikube service $BACKEND_SERVICE -n $K8S_NAMESPACE --url)
+
           echo ""
           echo "Application deployed successfully."
           echo "Frontend URL: $FRONTEND_URL"
           echo "Backend API URL: $BACKEND_URL/api/habits"
-          echo "$FRONTEND_URL"
-          echo "$BACKEND_URL/api/habits"
-          xdg-open "$FRONTEND_URL" || open "$FRONTEND_URL" || true
         '''
       }
     }
